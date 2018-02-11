@@ -150,11 +150,6 @@ set(DFFI_SRC
   lib/dffictx.cpp
 )
 
-add_library(dffi
-  SHARED
-  ${DFFI_SRC}
-)
-
 get_source_file_property(_obj_depends lib/dffi_impl_clang_res.cpp OBJECT_DEPENDS)
 if(NOT _obj_depends)
   set(_obj_depends)
@@ -162,8 +157,6 @@ endif()
 list(APPEND _obj_depends "${CLANG_RES_HEADER}")
 set_source_files_properties(lib/dffi_impl_clang_res.cpp PROPERTIES
   OBJECT_DEPENDS ${_obj_depends})
-
-
 
 set(DFFI_LINK_LIBRARIES
   clangARCMigrate
@@ -185,14 +178,10 @@ set(DFFI_LINK_LIBRARIES
   ${llvm_libs}
 )
 
-target_link_libraries(dffi
-  PUBLIC
-  ${DFFI_LINK_LIBRARIES}
-)
-
 option(DFFI_STATIC_LLVM "Create a static library with dffi and llvm/clang" OFF)
 
 if (DFFI_STATIC_LLVM)
+  add_definitions(-Ddffi_STATIC)
   add_library(dffi_static
     STATIC
     ${DFFI_SRC}
@@ -203,22 +192,41 @@ if (DFFI_STATIC_LLVM)
   endforeach(LIB_)
 
   set(DFFI_STATIC_LLVM_PATH "${CMAKE_CURRENT_BINARY_DIR}/dffi_static_llvm${CMAKE_STATIC_LIBRARY_SUFFIX}" CACHE STRING "Path to the static library containings dffi and LLVM static libraries")
-  # TODO: make merge libs for {dar,}win
-  if (APPLE)
-    set(MERGE_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/tools/merge_libs_osx.sh")
-  elseif(UNIX)
-    set(MERGE_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/tools/merge_libs_gnu.sh")
+  if(WIN32)
+    add_custom_command(
+      TARGET dffi_static POST_BUILD
+      COMMAND "LIB.EXE"
+        ARGS
+          "/OUT:${DFFI_STATIC_LLVM_PATH}"
+          $<TARGET_FILE:dffi_static>
+          ${DFFI_LINK_LIBRARIES_FILES}
+    )
   else()
-    message(FATAL_ERROR "Static llvm library: unsupported system ${CMAKE_SYSTEM_NAME}")
+    if (APPLE)
+      set(MERGE_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/tools/merge_libs_osx.sh")
+    elseif(UNIX)
+      set(MERGE_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/tools/merge_libs_gnu.sh")
+    else()
+      message(FATAL_ERROR "Static llvm library: unsupported system ${CMAKE_SYSTEM_NAME}")
+    endif()
+    add_custom_command(
+      TARGET dffi_static POST_BUILD
+      COMMAND "${MERGE_LIBS}"
+        ARGS
+          "${DFFI_STATIC_LLVM_PATH}"
+          $<TARGET_FILE:dffi_static>
+          ${DFFI_LINK_LIBRARIES_FILES}
+      DEPENDS "${MERGE_LIBS}"
+    )
   endif()
-  add_custom_command(
-    TARGET dffi_static POST_BUILD
-    COMMAND "${MERGE_LIBS}"
-      ARGS
-        "${DFFI_STATIC_LLVM_PATH}"
-        $<TARGET_FILE:dffi_static>
-        ${DFFI_LINK_LIBRARIES_FILES}
-    DEPENDS "${MERGE_LIBS}"
+else()
+  add_library(dffi
+    SHARED
+    ${DFFI_SRC}
+  )
+  target_link_libraries(dffi
+    PUBLIC
+    ${DFFI_LINK_LIBRARIES}
   )
 endif()
 

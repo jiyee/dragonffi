@@ -167,11 +167,12 @@ void InitHeaderSearchFlags(std::string const& TripleStr,
     if (IncludeArgs[i] == StringRef("-internal-externc-isystem"))
       IncludeType = frontend::ExternCSystem;
 
-    if (path::is_relative(Directory)) {
+    /*if (path::is_relative(Directory, sys::path::Style::posix)) {
+	errs() << Directory << "\n";
       llvm::report_fatal_error("relative directory in clang's include paths!");
-    } else {
+    } else {*/
       HSO.UserEntries.emplace_back(Directory, IncludeType, false, false);
-    }
+    //}
   }
 
   for (auto const& D: Opts.IncludeDirs) {
